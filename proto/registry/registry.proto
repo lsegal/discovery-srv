@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+import "github.com/micro/go-platform/discovery/proto/discovery.proto";
+
+service Registry {
+	rpc Register(RegisterRequest) returns (RegisterResponse) {}
+	rpc Deregister(DeregisterRequest) returns (RegisterResponse) {}
+	rpc GetService(GetServiceRequest) returns (GetServiceResponse) {}	
+	rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {}
+	rpc Watch(WatchRequest) returns (stream WatchResponse) {}
+}
+
+message RegisterRequest {
+	Service service = 1;
+}
+
+message RegisterResponse {
+}
+
+message DeregisterRequest {
+	Service service = 1;
+}
+
+message DeregisterResponse {
+}
+
+message GetServiceRequest {
+	string service = 1;
+}
+
+message GetServiceResponse {
+	repeated Service services = 1;
+}
+
+message ListServicesRequest {
+}
+
+message ListServicesResponse {
+	repeated Service services = 1;
+}
+
+message WatchRequest {
+	string service = 1;
+}
+
+message WatchResponse {
+	string action = 1; // create, update, delete
+	Service service = 2;
+}

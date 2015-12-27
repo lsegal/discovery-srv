@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+import "github.com/micro/go-platform/discovery/proto/discovery.proto";
+
+service Discovery {
+	rpc Heartbeats(HeartbeatsRequest) returns (HeartbeatsResponse) {}
+}
+
+message HeartbeatsRequest {
+	string id = 1;
+	uint64 after = 2; // return results after unix timestamp
+	uint64 limit = 3;
+	uint64 offset = 4;
+}
+
+message HeartbeatsResponse {
+	repeated Heartbeat heartbeats = 1;
+}
