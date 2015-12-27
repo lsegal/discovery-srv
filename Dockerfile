@@ -1,3 +1,3 @@
 FROM alpine:3.2
-ADD slack-srv /slack-srv
-ENTRYPOINT [ "/slack-srv" ]
+ADD discovery-srv /discovery-srv
+ENTRYPOINT [ "/discovery-srv" ]
