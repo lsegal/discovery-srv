@@ -97,6 +97,8 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 	d.Lock()
 	defer d.Unlock()
 
+	registry.DefaultRegistry.Register(hb.Service)
+
 	hbs, ok := d.heartbeats[hb.Id]
 	if !ok {
 		d.heartbeats[hb.Id] = append(d.heartbeats[hb.Id], hb)
@@ -113,7 +115,6 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 
 	hbs = append(hbs, hb)
 	d.heartbeats[hb.Id] = hbs
-	registry.DefaultRegistry.Register(hb.Service)
 	return nil
 }
 
