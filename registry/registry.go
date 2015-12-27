@@ -23,6 +23,7 @@ var (
 func newRegistry() *registry {
 	return &registry{
 		services: make(map[string][]*proto.Service),
+		watchers: make(map[*watcher]string),
 	}
 }
 

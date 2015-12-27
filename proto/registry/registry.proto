@@ -4,7 +4,7 @@ import "github.com/micro/go-platform/discovery/proto/discovery.proto";
 
 service Registry {
 	rpc Register(RegisterRequest) returns (RegisterResponse) {}
-	rpc Deregister(DeregisterRequest) returns (RegisterResponse) {}
+	rpc Deregister(DeregisterRequest) returns (DeregisterResponse) {}
 	rpc GetService(GetServiceRequest) returns (GetServiceResponse) {}	
 	rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {}
 	rpc Watch(WatchRequest) returns (stream WatchResponse) {}

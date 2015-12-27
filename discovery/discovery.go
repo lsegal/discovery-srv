@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -114,6 +113,7 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 
 	hbs = append(hbs, hb)
 	d.heartbeats[hb.Id] = hbs
+	registry.DefaultRegistry.Register(hb.Service)
 	return nil
 }
 
