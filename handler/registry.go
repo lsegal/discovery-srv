@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/micro/discovery-srv/discovery"
-	proto "github.com/micro/discovery-srv/proto/registry"
-	"github.com/micro/discovery-srv/registry"
 	"github.com/micro/go-micro/errors"
+
+	proto "github.com/micro/discovery-srv/proto/registry"
+	proto2 "github.com/micro/go-platform/discovery/proto"
 	"golang.org/x/net/context"
 )
 
@@ -15,11 +18,7 @@ func (r *Registry) Register(ctx context.Context, req *proto.RegisterRequest, rsp
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.Register", "bad request")
 	}
 
-	if err := registry.DefaultRegistry.Register(req.Service); err != nil {
-		return errors.InternalServerError("go.micro.srv.discovery.Registry.Register", err.Error())
-	}
-
-	if err := discovery.Register(ctx, req.Service); err != nil {
+	if err := discovery.DefaultDiscovery.Register(toService(req.Service)); err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.Register", err.Error())
 	}
 
@@ -31,11 +30,7 @@ func (r *Registry) Deregister(ctx context.Context, req *proto.DeregisterRequest,
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.Deregister", "bad request")
 	}
 
-	if err := registry.DefaultRegistry.Deregister(req.Service); err != nil {
-		return errors.InternalServerError("go.micro.srv.discovery.Registry.Deregister", err.Error())
-	}
-
-	if err := discovery.Deregister(ctx, req.Service); err != nil {
+	if err := discovery.DefaultDiscovery.Deregister(toService(req.Service)); err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.Deregister", err.Error())
 	}
 
@@ -47,29 +42,33 @@ func (r *Registry) GetService(ctx context.Context, req *proto.GetServiceRequest,
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.GetService", "bad request")
 	}
 
-	services, err := registry.DefaultRegistry.GetService(req.Service)
+	services, err := discovery.DefaultDiscovery.GetService(req.Service)
 	if err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.GetService", err.Error())
 	}
 
-	rsp.Services = services
+	for _, service := range services {
+		rsp.Services = append(rsp.Services, toProto(service))
+	}
 
 	return nil
 }
 
 func (r *Registry) ListServices(ctx context.Context, req *proto.ListServicesRequest, rsp *proto.ListServicesResponse) error {
-	services, err := registry.DefaultRegistry.ListServices()
+	services, err := discovery.DefaultDiscovery.ListServices()
 	if err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.GetService", err.Error())
 	}
 
-	rsp.Services = services
+	for _, service := range services {
+		rsp.Services = append(rsp.Services, toProto(service))
+	}
 
 	return nil
 }
 
 func (r *Registry) Watch(ctx context.Context, req *proto.WatchRequest, stream proto.Registry_WatchStream) error {
-	watcher, err := registry.DefaultRegistry.Watch(req.Service)
+	watcher, err := discovery.DefaultDiscovery.Watch()
 	if err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.Watch", err.Error())
 	}
@@ -78,9 +77,16 @@ func (r *Registry) Watch(ctx context.Context, req *proto.WatchRequest, stream pr
 		if err != nil {
 			return errors.InternalServerError("go.micro.srv.discovery.Registry.Watch", err.Error())
 		}
+		if len(req.Service) > 0 && update.Service.Name != req.Service {
+			continue
+		}
+
 		if err := stream.SendR(&proto.WatchResponse{
-			Action:  update.Action,
-			Service: update.Service,
+			Result: &proto2.Result{
+				Action:    update.Action,
+				Service:   toProto(update.Service),
+				Timestamp: time.Now().Unix(),
+			},
 		}); err != nil {
 			return errors.InternalServerError("go.micro.srv.discovery.Registry.Watch", err.Error())
 		}

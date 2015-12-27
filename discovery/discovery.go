@@ -5,14 +5,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/micro/discovery-srv/registry"
-	"github.com/micro/go-micro/client"
+	log "github.com/golang/glog"
+	disco "github.com/micro/go-platform/discovery"
 	proto "github.com/micro/go-platform/discovery/proto"
 	"golang.org/x/net/context"
 )
 
 type discovery struct {
-	sync.RWMutex
+	disco.Discovery
+
+	wtx          sync.RWMutex
+	watchResults map[string][]*proto.Result
+
+	htx        sync.RWMutex
 	heartbeats map[string][]*proto.Heartbeat
 }
 
@@ -21,13 +26,35 @@ var (
 	ErrNotFound      = errors.New("not found")
 	HeartbeatTopic   = "micro.discovery.heartbeat"
 	WatchTopic       = "micro.discovery.watch"
-	TickInterval     = time.Duration(time.Minute)
+
+	TickInterval = time.Duration(time.Minute)
+	History      = int64(3600)
 )
 
 func newDiscovery() *discovery {
 	return &discovery{
-		heartbeats: make(map[string][]*proto.Heartbeat),
+		watchResults: make(map[string][]*proto.Result),
+		heartbeats:   make(map[string][]*proto.Heartbeat),
 	}
+}
+
+func filterRes(r []*proto.Result, after int64, limit, offset int) []*proto.Result {
+	if len(r) < offset {
+		return []*proto.Result{}
+	}
+
+	if (limit + offset) > len(r) {
+		limit = len(r) - offset
+	}
+
+	var rs []*proto.Result
+	for i := 0; i < limit; i++ {
+		if r[offset].Timestamp > after {
+			rs = append(rs, r[offset])
+		}
+		offset++
+	}
+	return rs
 }
 
 func filter(hb []*proto.Heartbeat, after int64, limit, offset int) []*proto.Heartbeat {
@@ -49,9 +76,9 @@ func filter(hb []*proto.Heartbeat, after int64, limit, offset int) []*proto.Hear
 	return hbs
 }
 
-func (d *discovery) reap() {
-	d.Lock()
-	defer d.Unlock()
+func (d *discovery) reapHB() {
+	d.htx.Lock()
+	defer d.htx.Unlock()
 
 	t := time.Now().Unix()
 	for id, hb := range d.heartbeats {
@@ -66,17 +93,41 @@ func (d *discovery) reap() {
 	}
 }
 
+func (d *discovery) reapRes() {
+	d.wtx.Lock()
+	defer d.wtx.Unlock()
+
+	t := time.Now().Unix()
+	for service, results := range d.watchResults {
+		var rs []*proto.Result
+		for _, res := range results {
+			if res.Timestamp < (t - History) {
+				continue
+			}
+			rs = append(rs, res)
+		}
+		d.watchResults[service] = rs
+	}
+}
+
 func (d *discovery) run() {
 	t := time.NewTicker(TickInterval)
 
 	for _ = range t.C {
-		d.reap()
+		d.reapHB()
+		d.reapRes()
 	}
 }
 
+func (d *discovery) Init() {
+	d.Discovery = disco.NewDiscovery(
+		disco.UseDiscovery(false),
+	)
+}
+
 func (d *discovery) Heartbeats(id string, after int64, limit, offset int) ([]*proto.Heartbeat, error) {
-	d.RLock()
-	defer d.RUnlock()
+	d.htx.RLock()
+	defer d.htx.RUnlock()
 
 	if len(id) == 0 {
 		var hbs []*proto.Heartbeat
@@ -93,11 +144,28 @@ func (d *discovery) Heartbeats(id string, after int64, limit, offset int) ([]*pr
 	return filter(hbs, after, limit, offset), nil
 }
 
-func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) error {
-	d.Lock()
-	defer d.Unlock()
+func (d *discovery) WatchResults(service string, after int64, limit, offset int) ([]*proto.Result, error) {
+	d.wtx.RLock()
+	defer d.wtx.RUnlock()
 
-	registry.DefaultRegistry.Register(hb.Service)
+	if len(service) == 0 {
+		var rs []*proto.Result
+		for _, res := range d.watchResults {
+			rs = append(rs, res...)
+		}
+		return filterRes(rs, after, limit, offset), nil
+	}
+
+	rs, ok := d.watchResults[service]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return filterRes(rs, after, limit, offset), nil
+}
+
+func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) error {
+	d.htx.Lock()
+	defer d.htx.Unlock()
 
 	hbs, ok := d.heartbeats[hb.Id]
 	if !ok {
@@ -119,31 +187,17 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 }
 
 func (d *discovery) ProcessResult(ctx context.Context, r *proto.Result) error {
-	switch r.Action {
-	case "create", "update":
-		return registry.DefaultRegistry.Register(r.Service)
-	case "delete":
-		return registry.DefaultRegistry.Deregister(r.Service)
-	}
+	d.wtx.Lock()
+	defer d.wtx.Unlock()
+	d.watchResults[r.Service.Name] = append(d.watchResults[r.Service.Name], r)
 	return nil
 }
 
 func (d *discovery) Run() {
+	if d.Discovery == nil {
+		log.Fatal("Discovery not initialised")
+	}
+
+	d.Discovery.Start()
 	go d.run()
-}
-
-func Register(ctx context.Context, service *proto.Service) error {
-	p := client.NewPublication(WatchTopic, &proto.Result{
-		Action:  "update",
-		Service: service,
-	})
-	return client.Publish(ctx, p)
-}
-
-func Deregister(ctx context.Context, service *proto.Service) error {
-	p := client.NewPublication(WatchTopic, &proto.Result{
-		Action:  "delete",
-		Service: service,
-	})
-	return client.Publish(ctx, p)
 }

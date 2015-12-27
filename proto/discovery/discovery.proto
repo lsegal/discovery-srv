@@ -4,6 +4,7 @@ import "github.com/micro/go-platform/discovery/proto/discovery.proto";
 
 service Discovery {
 	rpc Heartbeats(HeartbeatsRequest) returns (HeartbeatsResponse) {}
+	rpc WatchResults(WatchResultsRequest) returns (WatchResultsResponse) {}
 }
 
 message HeartbeatsRequest {
@@ -15,4 +16,15 @@ message HeartbeatsRequest {
 
 message HeartbeatsResponse {
 	repeated Heartbeat heartbeats = 1;
+}
+
+message WatchResultsRequest {
+	string service = 1;
+	uint64 after = 2; // return results after unix timestamp
+	uint64 limit = 3;
+	uint64 offset = 4;
+}
+
+message WatchResultsResponse {
+	repeated Result results = 1;
 }
