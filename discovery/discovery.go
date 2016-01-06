@@ -121,7 +121,7 @@ func (d *discovery) run() {
 
 func (d *discovery) Init() {
 	d.Discovery = disco.NewDiscovery(
-		disco.UseDiscovery(false),
+		disco.EnableDiscovery(false),
 	)
 }
 
