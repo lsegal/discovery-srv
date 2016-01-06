@@ -81,7 +81,7 @@ func (r *Registry) Watch(ctx context.Context, req *proto.WatchRequest, stream pr
 			continue
 		}
 
-		if err := stream.SendR(&proto.WatchResponse{
+		if err := stream.Send(&proto.WatchResponse{
 			Result: &proto2.Result{
 				Action:    update.Action,
 				Service:   toProto(update.Service),

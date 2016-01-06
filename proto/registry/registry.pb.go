@@ -259,17 +259,31 @@ func (c *registryClient) Watch(ctx context.Context, in *WatchRequest, opts ...cl
 }
 
 type Registry_WatchClient interface {
-	RecvR() (*WatchResponse, error)
-	client.Streamer
+	SendMsg(interface{}) error
+	RecvMsg(interface{}) error
+	Close() error
+	Recv() (*WatchResponse, error)
 }
 
 type registryWatchClient struct {
-	client.Streamer
+	stream client.Streamer
 }
 
-func (x *registryWatchClient) RecvR() (*WatchResponse, error) {
+func (x *registryWatchClient) Close() error {
+	return x.stream.Close()
+}
+
+func (x *registryWatchClient) SendMsg(m interface{}) error {
+	return x.stream.Send(m)
+}
+
+func (x *registryWatchClient) RecvMsg(m interface{}) error {
+	return x.stream.Recv(m)
+}
+
+func (x *registryWatchClient) Recv() (*WatchResponse, error) {
 	m := new(WatchResponse)
-	err := x.Recv(m)
+	err := x.stream.Recv(m)
 	if err != nil {
 		return nil, err
 	}
@@ -319,16 +333,30 @@ func (h *Registry) Watch(ctx context.Context, stream server.Streamer) error {
 }
 
 type Registry_WatchStream interface {
-	SendR(*WatchResponse) error
-	server.Streamer
+	SendMsg(interface{}) error
+	RecvMsg(interface{}) error
+	Close() error
+	Send(*WatchResponse) error
 }
 
 type registryWatchStream struct {
-	server.Streamer
+	stream server.Streamer
 }
 
-func (x *registryWatchStream) SendR(m *WatchResponse) error {
-	return x.Streamer.Send(m)
+func (x *registryWatchStream) Close() error {
+	return x.stream.Close()
+}
+
+func (x *registryWatchStream) SendMsg(m interface{}) error {
+	return x.stream.Send(m)
+}
+
+func (x *registryWatchStream) RecvMsg(m interface{}) error {
+	return x.stream.Recv(m)
+}
+
+func (x *registryWatchStream) Send(m *WatchResponse) error {
+	return x.stream.Send(m)
 }
 
 var fileDescriptor0 = []byte{
