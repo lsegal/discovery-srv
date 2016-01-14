@@ -2,8 +2,7 @@ package main
 
 import (
 	log "github.com/golang/glog"
-	"github.com/micro/go-micro/cmd"
-	"github.com/micro/go-micro/server"
+	"github.com/micro/go-micro"
 
 	"github.com/micro/discovery-srv/discovery"
 	"github.com/micro/discovery-srv/handler"
@@ -13,27 +12,29 @@ import (
 )
 
 func main() {
-	cmd.Init()
-
-	server.Init(
-		server.Name("go.micro.srv.discovery"),
+	service := micro.NewService(
+		micro.Name("go.micro.srv.discovery"),
+		micro.BeforeStart(func() error {
+			discovery.DefaultDiscovery.Init()
+			discovery.DefaultDiscovery.Run()
+			return nil
+		}),
 	)
 
-	proto.RegisterDiscoveryHandler(server.DefaultServer, new(handler.Discovery))
-	proto2.RegisterRegistryHandler(server.DefaultServer, new(handler.Registry))
+	service.Init()
 
-	server.Subscribe(
-		server.NewSubscriber(discovery.HeartbeatTopic, discovery.DefaultDiscovery.ProcessHeartbeat),
+	service.Server().Subscribe(
+		service.Server().NewSubscriber(discovery.HeartbeatTopic, discovery.DefaultDiscovery.ProcessHeartbeat),
 	)
 
-	server.Subscribe(
-		server.NewSubscriber(discovery.WatchTopic, discovery.DefaultDiscovery.ProcessResult),
+	service.Server().Subscribe(
+		service.Server().NewSubscriber(discovery.WatchTopic, discovery.DefaultDiscovery.ProcessResult),
 	)
 
-	discovery.DefaultDiscovery.Init()
-	discovery.DefaultDiscovery.Run()
+	proto.RegisterDiscoveryHandler(service.Server(), new(handler.Discovery))
+	proto2.RegisterRegistryHandler(service.Server(), new(handler.Registry))
 
-	if err := server.Run(); err != nil {
+	if err := service.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
