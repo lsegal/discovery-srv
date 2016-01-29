@@ -14,14 +14,15 @@ import (
 func main() {
 	service := micro.NewService(
 		micro.Name("go.micro.srv.discovery"),
+	)
+
+	service.Init(
 		micro.BeforeStart(func() error {
-			discovery.DefaultDiscovery.Init()
-			discovery.DefaultDiscovery.Run()
+			discovery.Init(service)
+			discovery.Run()
 			return nil
 		}),
 	)
-
-	service.Init()
 
 	service.Server().Subscribe(
 		service.Server().NewSubscriber(discovery.HeartbeatTopic, discovery.DefaultDiscovery.ProcessHeartbeat),

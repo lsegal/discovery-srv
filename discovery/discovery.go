@@ -6,6 +6,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/micro/go-micro"
 	disco "github.com/micro/go-platform/discovery"
 	proto "github.com/micro/go-platform/discovery/proto"
 	"golang.org/x/net/context"
@@ -119,9 +120,11 @@ func (d *discovery) run() {
 	}
 }
 
-func (d *discovery) Init() {
+func (d *discovery) Init(s micro.Service) {
 	d.Discovery = disco.NewDiscovery(
 		disco.EnableDiscovery(false),
+		disco.Registry(s.Options().Registry),
+		disco.Client(s.Client()),
 	)
 }
 
@@ -200,4 +203,12 @@ func (d *discovery) Run() {
 
 	d.Discovery.Start()
 	go d.run()
+}
+
+func Init(s micro.Service) {
+	DefaultDiscovery.Init(s)
+}
+
+func Run() {
+	DefaultDiscovery.Run()
 }
