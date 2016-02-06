@@ -80,6 +80,34 @@ micro query go.micro.srv.discovery Discovery.Heartbeats
 }
 ```
 
+### Discovery.Endpoints
+
+```shell
+micro query go.micro.srv.discovery Discovery.Endpoints
+{
+	"endpoints": [
+		{
+			"endpoint": {
+				"metadata": {
+					"index": "Handles index requests"
+				},
+				"name": "/index",
+				"request": {
+					"name": "request",
+					"type": "Request"
+				},
+				"response": {
+					"name": "response",
+					"type": "Response"
+				}
+			},
+			"service": "go.micro.srv.foo",
+			"version": "latest"
+		}
+	]
+}
+```
+
 ### Sending Heartbeats
 
 Heartbeats are sent to the discovery service using [go-platform/discovery](https://github.com/micro/go-platform/tree/master/discovery)
