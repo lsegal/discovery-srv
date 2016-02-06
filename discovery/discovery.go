@@ -6,6 +6,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	proto2 "github.com/micro/discovery-srv/proto/discovery"
 	"github.com/micro/go-micro"
 	disco "github.com/micro/go-platform/discovery"
 	proto "github.com/micro/go-platform/discovery/proto"
@@ -20,6 +21,9 @@ type discovery struct {
 
 	htx        sync.RWMutex
 	heartbeats map[string][]*proto.Heartbeat
+
+	etx       sync.RWMutex
+	endpoints map[string][]*proto2.ServiceEndpoint
 }
 
 var (
@@ -36,6 +40,7 @@ func newDiscovery() *discovery {
 	return &discovery{
 		watchResults: make(map[string][]*proto.Result),
 		heartbeats:   make(map[string][]*proto.Heartbeat),
+		endpoints:    make(map[string][]*proto2.ServiceEndpoint),
 	}
 }
 
@@ -75,6 +80,83 @@ func filter(hb []*proto.Heartbeat, after int64, limit, offset int) []*proto.Hear
 		offset++
 	}
 	return hbs
+}
+
+func filterEps(eps []*proto2.ServiceEndpoint, limit, offset int) []*proto2.ServiceEndpoint {
+	if len(eps) < offset {
+		return []*proto2.ServiceEndpoint{}
+	}
+
+	if (limit + offset) > len(eps) {
+		limit = len(eps) - offset
+	}
+
+	var newEps []*proto2.ServiceEndpoint
+	for i := 0; i < limit; i++ {
+		newEps = append(newEps, eps[offset])
+		offset++
+	}
+	return newEps
+}
+
+func (d *discovery) reapEps() {
+	d.htx.RLock()
+	heartbeats := d.heartbeats
+	d.htx.RUnlock()
+
+	versions := make(map[string][]string)
+
+	// Create a service version map
+	for _, hb := range heartbeats {
+		for _, beat := range hb {
+			service, ok := versions[beat.Service.Name]
+			if !ok {
+				versions[beat.Service.Name] = []string{beat.Service.Version}
+				continue
+			}
+			var seen bool
+			for _, version := range service {
+				if version == beat.Service.Version {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				service = append(service, beat.Service.Version)
+				versions[beat.Service.Name] = service
+			}
+		}
+	}
+
+	d.etx.Lock()
+	defer d.etx.Unlock()
+
+	endpoints := make(map[string][]*proto2.ServiceEndpoint)
+
+	// Create new endpoint map
+
+	for service, epoints := range d.endpoints {
+		vers, ok := versions[service]
+		if !ok || len(vers) == 0 {
+			continue
+		}
+
+		var eps []*proto2.ServiceEndpoint
+
+		for _, ep := range epoints {
+			for _, version := range vers {
+				if version == ep.Version {
+					eps = append(eps, ep)
+					break
+				}
+			}
+		}
+
+		endpoints[service] = eps
+	}
+
+	d.endpoints = endpoints
+
 }
 
 func (d *discovery) reapHB() {
@@ -117,6 +199,7 @@ func (d *discovery) run() {
 	for _ = range t.C {
 		d.reapHB()
 		d.reapRes()
+		d.reapEps()
 	}
 }
 
@@ -126,6 +209,37 @@ func (d *discovery) Init(s micro.Service) {
 		disco.Registry(s.Options().Registry),
 		disco.Client(s.Client()),
 	)
+}
+
+func (d *discovery) Endpoints(service, version string, limit, offset int) ([]*proto2.ServiceEndpoint, error) {
+	d.etx.RLock()
+	defer d.etx.RUnlock()
+
+	if len(service) == 0 {
+		var eps []*proto2.ServiceEndpoint
+		for _, ep := range d.endpoints {
+			eps = append(eps, ep...)
+		}
+		return filterEps(eps, limit, offset), nil
+	}
+
+	eps, ok := d.endpoints[service]
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	if len(version) > 0 {
+		var newEps []*proto2.ServiceEndpoint
+		for _, ep := range eps {
+			if ep.Version != version {
+				continue
+			}
+			newEps = append(newEps, ep)
+		}
+		eps = newEps
+	}
+
+	return filterEps(eps, limit, offset), nil
 }
 
 func (d *discovery) Heartbeats(id string, after int64, limit, offset int) ([]*proto.Heartbeat, error) {
@@ -191,8 +305,60 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 
 func (d *discovery) ProcessResult(ctx context.Context, r *proto.Result) error {
 	d.wtx.Lock()
-	defer d.wtx.Unlock()
 	d.watchResults[r.Service.Name] = append(d.watchResults[r.Service.Name], r)
+	d.wtx.Unlock()
+
+	d.etx.Lock()
+	defer d.etx.Unlock()
+
+	// add endpoints
+	service, ok := d.endpoints[r.Service.Name]
+	if !ok {
+		if r.Action == "delete" {
+			return nil
+		}
+
+		var endpoints []*proto2.ServiceEndpoint
+
+		for _, ep := range r.Service.Endpoints {
+			endpoints = append(endpoints, &proto2.ServiceEndpoint{
+				Service:  r.Service.Name,
+				Version:  r.Service.Version,
+				Endpoint: ep,
+			})
+		}
+
+		d.endpoints[r.Service.Name] = endpoints
+	}
+
+	// TODO: handle deletes
+	if r.Action == "delete" {
+		return nil
+	}
+
+	var endpoints []*proto2.ServiceEndpoint
+
+	// keep what we don't touch
+	for _, endpoint := range service {
+		// skip this service
+		if r.Service.Version == endpoint.Version {
+			continue
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+
+	// add new endpoints
+	for _, endpoint := range r.Service.Endpoints {
+		endpoints = append(endpoints, &proto2.ServiceEndpoint{
+			Service:  r.Service.Name,
+			Version:  r.Service.Version,
+			Endpoint: endpoint,
+		})
+	}
+
+	// update the endpoints
+	d.endpoints[r.Service.Name] = endpoints
+
 	return nil
 }
 

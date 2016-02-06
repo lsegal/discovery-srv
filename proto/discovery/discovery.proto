@@ -3,8 +3,26 @@ syntax = "proto3";
 import "github.com/micro/go-platform/discovery/proto/discovery.proto";
 
 service Discovery {
+	rpc Endpoints(EndpointsRequest) returns (EndpointsResponse) {}
 	rpc Heartbeats(HeartbeatsRequest) returns (HeartbeatsResponse) {}
 	rpc WatchResults(WatchResultsRequest) returns (WatchResultsResponse) {}
+}
+
+message ServiceEndpoint {
+	string service = 1;
+	string version = 2;
+	Endpoint endpoint = 3;
+}
+
+message EndpointsRequest {
+	string service = 1;
+	string version = 2;
+	uint64 limit = 3;
+	uint64 offset = 4;
+}
+
+message EndpointsResponse {
+	repeated ServiceEndpoint endpoints = 1;
 }
 
 message HeartbeatsRequest {

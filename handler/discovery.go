@@ -9,6 +9,21 @@ import (
 
 type Discovery struct{}
 
+func (m *Discovery) Endpoints(ctx context.Context, req *proto.EndpointsRequest, rsp *proto.EndpointsResponse) error {
+	if req.Limit == 0 {
+		req.Limit = 10
+	}
+	endpoints, err := discovery.DefaultDiscovery.Endpoints(req.Service, req.Version, int(req.Limit), int(req.Offset))
+	if err != nil && err == discovery.ErrNotFound {
+		return errors.NotFound("go.micro.srv.discovery.Discovery.Endpoints", err.Error())
+	} else if err != nil {
+		return errors.InternalServerError("go.micro.srv.discovery.Discovery.Endpoints", err.Error())
+	}
+
+	rsp.Endpoints = endpoints
+	return nil
+}
+
 func (m *Discovery) Heartbeats(ctx context.Context, req *proto.HeartbeatsRequest, rsp *proto.HeartbeatsResponse) error {
 	if req.Limit == 0 {
 		req.Limit = 10
