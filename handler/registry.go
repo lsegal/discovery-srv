@@ -59,7 +59,6 @@ func (r *Registry) ListServices(ctx context.Context, req *proto.ListServicesRequ
 	if err != nil {
 		return errors.InternalServerError("go.micro.srv.discovery.Registry.GetService", err.Error())
 	}
-
 	for _, service := range services {
 		rsp.Services = append(rsp.Services, toProto(service))
 	}

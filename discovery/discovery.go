@@ -100,14 +100,11 @@ func filterEps(eps []*proto2.ServiceEndpoint, limit, offset int) []*proto2.Servi
 }
 
 func (d *discovery) reapEps() {
-	d.htx.RLock()
-	heartbeats := d.heartbeats
-	d.htx.RUnlock()
-
 	versions := make(map[string][]string)
 
 	// Create a service version map
-	for _, hb := range heartbeats {
+	d.htx.RLock()
+	for _, hb := range d.heartbeats {
 		for _, beat := range hb {
 			service, ok := versions[beat.Service.Name]
 			if !ok {
@@ -127,6 +124,7 @@ func (d *discovery) reapEps() {
 			}
 		}
 	}
+	d.htx.RUnlock()
 
 	d.etx.Lock()
 	defer d.etx.Unlock()
@@ -290,16 +288,20 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 		return nil
 	}
 
-	for i, h := range hbs {
+	heartbeats := hbs
+
+	var seen bool
+	for i, h := range heartbeats {
 		if h.Service.Nodes[0].Id == hb.Service.Nodes[0].Id {
-			hbs[i] = hb
-			d.heartbeats[hb.Id] = hbs
-			return nil
+			heartbeats[i] = hb
+			seen = true
+			break
 		}
 	}
-
-	hbs = append(hbs, hb)
-	d.heartbeats[hb.Id] = hbs
+	if !seen {
+		heartbeats = append(heartbeats, hb)
+	}
+	d.heartbeats[hb.Id] = heartbeats
 	return nil
 }
 
