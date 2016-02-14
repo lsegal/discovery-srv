@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package go.micro.srv.discovery.discovery;
+
 import "github.com/micro/go-platform/discovery/proto/discovery.proto";
 
 service Discovery {
