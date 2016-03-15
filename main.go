@@ -1,7 +1,8 @@
 package main
 
 import (
-	log "github.com/golang/glog"
+	"log"
+
 	"github.com/micro/go-micro"
 
 	"github.com/micro/discovery-srv/discovery"

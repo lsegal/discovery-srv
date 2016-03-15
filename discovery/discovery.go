@@ -2,10 +2,10 @@ package discovery
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 
-	log "github.com/golang/glog"
 	proto2 "github.com/micro/discovery-srv/proto/discovery"
 	"github.com/micro/go-micro"
 	disco "github.com/micro/go-platform/discovery"
