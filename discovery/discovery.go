@@ -279,6 +279,24 @@ func (d *discovery) WatchResults(service string, after int64, limit, offset int)
 }
 
 func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) error {
+	// create endpoint cache if we have nothing
+	d.etx.Lock()
+	if _, ok := d.endpoints[hb.Service.Name]; !ok {
+		var endpoints []*proto2.ServiceEndpoint
+
+		for _, ep := range hb.Service.Endpoints {
+			endpoints = append(endpoints, &proto2.ServiceEndpoint{
+				Service:  hb.Service.Name,
+				Version:  hb.Service.Version,
+				Endpoint: ep,
+			})
+		}
+
+		d.endpoints[hb.Service.Name] = endpoints
+	}
+	d.etx.Unlock()
+
+	// process heartbeat
 	d.htx.Lock()
 	defer d.htx.Unlock()
 
@@ -302,6 +320,7 @@ func (d *discovery) ProcessHeartbeat(ctx context.Context, hb *proto.Heartbeat) e
 		heartbeats = append(heartbeats, hb)
 	}
 	d.heartbeats[hb.Id] = heartbeats
+
 	return nil
 }
 
@@ -331,6 +350,7 @@ func (d *discovery) ProcessResult(ctx context.Context, r *proto.Result) error {
 		}
 
 		d.endpoints[r.Service.Name] = endpoints
+		return nil
 	}
 
 	// TODO: handle deletes
