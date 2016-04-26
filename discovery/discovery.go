@@ -388,8 +388,6 @@ func (d *discovery) Run() {
 	if d.Discovery == nil {
 		log.Fatal("Discovery not initialised")
 	}
-
-	d.Discovery.Start()
 	go d.run()
 }
 
