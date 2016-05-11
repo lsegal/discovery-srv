@@ -3,6 +3,11 @@
 Discovery server is a microservice which layers on the registry to provide heartbeating, in memory caching and much more. 
 It subscribes to heartbeats and maintains a registry based on liveness.
 
+It's built with the [Eureka 2.0](https://github.com/Netflix/eureka/wiki/Eureka-2.0-Architecture-Overview) design in mind. 
+The Discovery service acts as a read layer cache where the usage of a Registry like Consul, Etcd, Zookeeper act as the 
+write layer. With the combination of the Registry, Discovery and Platform we can develop a highly available discovery 
+system.
+
 
 ## Getting started
 
