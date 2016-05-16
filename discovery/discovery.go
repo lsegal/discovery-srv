@@ -203,7 +203,7 @@ func (d *discovery) run() {
 
 func (d *discovery) Init(s micro.Service) {
 	d.Discovery = disco.NewDiscovery(
-		disco.EnableDiscovery(false),
+		disco.Service(false),
 		disco.Registry(s.Options().Registry),
 		disco.Client(s.Client()),
 	)
